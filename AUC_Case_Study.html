@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Case Study: Clinical prediction model for heart disease</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2212%22%20fill%3D%22%23F8F9F3%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2222%22%20r%3D%227%22%20fill%3D%22%2385416E%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2244%22%20r%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%2368763F%22%20stroke-width%3D%224%22%2F%3E%3Crect%20x%3D%2238%22%20y%3D%228%22%20width%3D%225%22%20height%3D%2248%22%20rx%3D%222.5%22%20fill%3D%22%23A35C46%22%2F%3E%3C%2Fsvg%3E">
+<style>
+  :root {
+    color-scheme: light;
+    /* PREDICT palette, light ground only.
+       Straight from the palette: cherry, dusty_cherry, off-white, white, sand,
+       lightest_cherry, lightest_peach, lightest_apple.
+       Darkened for text contrast (no dark apple/peach/stone in the palette):
+       apple #A5BC64 -> #68763F, bright_peach #FF906D -> #A35C46, stone #898A87 -> #70716F. */
+    --bg: #F8F9F3;            /* off-white */
+    --surface: #FFFFFF;       /* white */
+    --surface2: #FFFFFF;      /* white */
+    --text: #4F2641;          /* cherry */
+    --muted: #70716F;         /* stone, darkened */
+    --line: #E0E1DC;          /* sand */
+    --case: #85416E;          /* dusty_cherry */
+    --case-faint: #FEF2FA;    /* lightest_cherry */
+    --ctrl: #68763F;          /* apple, darkened */
+    --ctrl-faint: #F7FBED;    /* lightest_apple */
+    --accent: #A35C46;        /* bright_peach, darkened */
+    --accent-soft: #FEF5ED;   /* lightest_peach */
+    --on-accent: #FFFFFF;
+    --on-group: #FFFFFF;
+    --shadow: 0 1px 2px rgba(79,38,65,0.07), 0 6px 18px rgba(79,38,65,0.06);
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: #F8F9F3; color: var(--text);
+    font-family: "Aptos", "Aptos Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 16px; line-height: 1.45; -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 22px 16px 48px; }
+  header h1 { font-size: clamp(1.4rem, 3vw, 1.95rem); margin: 0 0 8px; letter-spacing: -0.015em; }
+  header p.meta { margin: 0; color: var(--text); font-weight: 600; font-size: 1.02rem; }
+  header p.meta span { color: var(--muted); font-weight: 400; margin: 0 7px; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 16px 16px; box-shadow: var(--shadow);
+  }
+  .card h2 {
+    font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.09em;
+    margin: 0 0 10px; color: var(--case); font-weight: 700;
+  }
+  .card .cap { font-size: 0.79rem; color: var(--muted); margin: 10px 0 0; }
+  .card .lead { font-size: 0.86rem; color: var(--muted); margin: 0 0 12px; }
+  .card .lead b { color: var(--text); font-weight: 600; }
+
+  .controls { margin: 18px 0 14px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .presets button {
+    font: inherit; font-size: 0.85rem; font-weight: 600; padding: 7px 13px;
+    border-radius: 999px; cursor: pointer; border: 1px solid var(--line);
+    background: var(--surface2); color: var(--text);
+  }
+  .presets button:hover { border-color: var(--case); color: var(--case); }
+  .presets button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .presets button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sl label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 2px; }
+  .sl .val { font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+  .sl .val b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+
+  .row2 { display: grid; gap: 14px; grid-template-columns: 1fr; margin-top: 14px; }
+  @media (min-width: 820px) { .row2 { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1120px) { .row2 { grid-template-columns: 1.05fr 1.1fr 0.95fr; } }
+
+  svg { display: block; width: 100%; height: auto; touch-action: none; }
+  svg text { font-family: inherit; }
+  #stripSvg { cursor: ew-resize; }
+  #rocSvg { cursor: pointer; }
+
+  .rowhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .playbtn {
+    font: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--accent); color: var(--accent); background: var(--accent-soft);
+    border-radius: 999px; padding: 4px 11px; margin-bottom: 10px;
+  }
+  .playbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 7px 20px;
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+    font-size: 0.78rem; color: var(--muted);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
+  .dot.tp { background: var(--case); }
+  .dot.fn { background: var(--surface); border: 2px solid var(--case); }
+  .dot.fp { background: var(--ctrl); }
+  .dot.tn { background: var(--surface); border: 2px solid var(--ctrl); }
+
+  table.m { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.m th, table.m td { padding: 8px 6px; text-align: center; border: 1px solid var(--line); }
+  table.m th.corner { border: none; background: none; }
+  table.m th.ch { color: var(--on-group); font-size: 0.78rem; }
+  table.m th.ch.a { background: var(--case); }
+  table.m th.ch.b { background: var(--ctrl); }
+  table.m th.rh { text-align: right; font-size: 0.78rem; border: none; padding-right: 9px; }
+  table.m td .n { font-size: 1.4rem; font-weight: 700; line-height: 1.1; display: block; }
+  table.m td .k { font-size: 0.66rem; color: var(--muted); }
+  td.a { background: var(--case-faint); } td.a .n { color: var(--case); }
+  td.b { background: var(--ctrl-faint); } td.b .n { color: var(--ctrl); }
+  .marg { font-size: 0.74rem; color: var(--muted); margin-top: 8px; text-align: center; }
+
+  .met { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .met:last-of-type { border-bottom: none; }
+  .met .num { font-size: 1.3rem; font-weight: 700; min-width: 3.6rem; font-variant-numeric: tabular-nums; }
+  .met .lab { font-weight: 600; font-size: 0.9rem; }
+  .met .sub { font-size: 0.74rem; color: var(--muted); }
+  .met.sens .num, .met.sens .lab { color: var(--case); }
+  .met.spec .num, .met.spec .lab { color: var(--ctrl); }
+  .aucbar {
+    margin-top: 10px; background: var(--case-faint); border: 1px dashed var(--case);
+    border-radius: 9px; padding: 8px 10px; display: flex; align-items: center; gap: 11px;
+  }
+  .aucbar .num { font-size: 1.55rem; font-weight: 700; color: var(--case); }
+  .aucbar .txt { font-size: 0.74rem; color: var(--muted); }
+
+  .story { margin-top: 14px; }
+  .story p { margin: 0; font-size: 1rem; }
+  .story b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .notice { margin-top: 12px; background: var(--accent-soft); border-radius: 10px; padding: 11px 14px; font-size: 0.88rem; }
+  .notice b { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Case Study: Clinical prediction model for heart disease</h1>
+  <p class="meta">100 Participants <span>|</span> Followed for 10 years <span>|</span> 10 develop heart disease <span>|</span> 90 do not</p>
+</header>
+
+<section class="controls">
+  <div class="presets">
+    <button type="button" data-t="10">Screening cut-off · 10%</button>
+    <button type="button" data-t="20">Case study example · 20%</button>
+    <button type="button" data-t="50">Conventional default · 50%</button>
+    <button type="button" data-t="60">Strong evidence needed · 60%</button>
+  </div>
+  <div class="sl">
+    <label for="thr">Decision threshold</label>
+    <div class="val">The model predicts disease for every patient whose predicted risk is <b id="thrVal">20%</b> or higher</div>
+    <input type="range" id="thr" min="1" max="70" step="1" value="20">
+  </div>
+</section>
+
+<div class="card">
+  <h2>The 100 patients, placed by the risk the model predicted</h2>
+  <p class="lead">One circle per patient, placed by predicted risk. Top row: the 10 who develop heart disease. Below: the 90 who stay well. <b>Filled</b> means predicted positive, <b>hollow</b> means predicted negative.</p>
+  <svg id="stripSvg" viewBox="0 0 880 256" role="img" aria-label="Each patient as a dot, positioned by predicted risk, split by whether they developed heart disease"></svg>
+  <div class="legend">
+    <span><i class="dot tp"></i> predicted positive, develops disease (TP)</span>
+    <span><i class="dot fp"></i> predicted positive, stays well (FP)</span>
+    <span><i class="dot fn"></i> predicted negative, develops disease (FN)</span>
+    <span><i class="dot tn"></i> predicted negative, stays well (TN)</span>
+  </div>
+</div>
+
+<div class="row2">
+
+  <div class="card">
+    <div class="rowhead">
+      <h2>The ROC curve</h2>
+      <button class="playbtn" id="play" type="button">▶ Sweep every threshold</button>
+    </div>
+    <svg id="rocSvg" viewBox="0 0 330 330" role="img" aria-label="ROC curve with the current threshold marked"></svg>
+  </div>
+
+  <div class="card">
+    <h2>Confusion matrix at this threshold</h2>
+    <table class="m">
+      <tr><th class="corner"></th><th class="ch a">Actual disease</th><th class="ch b">No actual disease</th></tr>
+      <tr>
+        <th class="rh">Predicted disease</th>
+        <td class="a"><span class="n" id="nTP">8</span><span class="k">TP</span></td>
+        <td class="b"><span class="n" id="nFP">27</span><span class="k">FP</span></td>
+      </tr>
+      <tr>
+        <th class="rh">Predicted no disease</th>
+        <td class="a"><span class="n" id="nFN">2</span><span class="k">FN</span></td>
+        <td class="b"><span class="n" id="nTN">63</span><span class="k">TN</span></td>
+      </tr>
+    </table>
+    <p class="marg"><span id="margPos">35</span> predicted positive <span>·</span> <span id="margNeg">65</span> predicted negative</p>
+    <p class="cap">Sensitivity and specificity are read down the columns. PPV and NPV are read along the rows.</p>
+  </div>
+
+  <div class="card">
+    <h2>The four numbers</h2>
+    <div class="met sens"><span class="num" id="mSens">80%</span><span><span class="lab">Sensitivity</span><br><span class="sub" id="fSens">8/(8+2)</span></span></div>
+    <div class="met spec"><span class="num" id="mSpec">70%</span><span><span class="lab">Specificity</span><br><span class="sub" id="fSpec">63/(63+27)</span></span></div>
+    <div class="met ppv"><span class="num" id="mPpv">22.9%</span><span><span class="lab">PPV</span><br><span class="sub" id="fPpv">8/(8+27)</span></span></div>
+    <div class="met npv"><span class="num" id="mNpv">96.9%</span><span><span class="lab">NPV</span><br><span class="sub" id="fNpv">63/(63+2)</span></span></div>
+    <div class="aucbar">
+      <div class="num">0.83</div>
+      <div class="txt">AUC. Take one patient who develops heart disease and one who does not: this is the probability the model gave the first of them the higher predicted risk. It describes how the model ranks all 100 patients, so every threshold returns the same value.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="card story"><p id="story"></p></div>
+<div class="notice" id="notice">Start at 20% to match the slides, then move the threshold to 50% and watch what the conventional default does to the 10 patients who actually develop heart disease.</div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var CASES = [7, 14, 21, 24, 28, 33, 38, 45, 52, 61];
+  var CTRLS = [1,1,1,1,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,
+               5,5,5,5,5,5,6,6,6,6,7,7,7,7,7,8,8,8,8,9,9,9,9,10,10,11,12,13,
+               14,14,15,18,19,20,21,21,21,21,25,25,25,25,25,27,27,27,28,28,
+               30,30,30,30,33,33,33,37,38,38,51,56];
+  var TMAX = 70;
+
+  function counts(t) {
+    var tp = 0, fp = 0, i;
+    for (i = 0; i < CASES.length; i++) if (CASES[i] >= t) tp++;
+    for (i = 0; i < CTRLS.length; i++) if (CTRLS[i] >= t) fp++;
+    return { tp: tp, fn: CASES.length - tp, fp: fp, tn: CTRLS.length - fp };
+  }
+  var AUC = (function () {
+    var w = 0, i, j;
+    for (i = 0; i < CASES.length; i++)
+      for (j = 0; j < CTRLS.length; j++)
+        w += CASES[i] > CTRLS[j] ? 1 : (CASES[i] === CTRLS[j] ? 0.5 : 0);
+    return w / (CASES.length * CTRLS.length);
+  })();
+
+  var $ = function (id) { return document.getElementById(id); };
+  var thrEl = $("thr"), stripSvg = $("stripSvg"), rocSvg = $("rocSvg"), playBtn = $("play");
+  var state = { t: 20, sweep: false, sweepTo: 0 };
+  function pct(x, dp) { return (x * 100).toFixed(dp === undefined ? 1 : dp).replace(/\.0$/, "") + "%"; }
+
+  function caseLine(c) {
+    if (c.tp === 0) return " The model misses all 10.";
+    if (c.fn === 0) return " The model correctly predicts disease in all 10.";
+    return " The model correctly predicts disease in " + c.tp + ", and misses " + c.fn + ".";
+  }
+  function ctrlLine(c) {
+    if (c.fp === 0) return " The model correctly rules out all 90.";
+    if (c.tn === 0) return " The model predicts disease in all 90 of them as well.";
+    return " The model correctly rules out " + c.tn + ", but predicts disease in " + c.fp +
+           (c.fp === 1 ? " who never develops it." : " who never develop it.");
+  }
+
+  /* ---------- strip plot ---------- */
+  var SW = 880, pL = 40, pR = 24, plotW = SW - pL - pR;
+  var LBL1 = 16, LBL2 = 36, TOPY = 50, BOTY = 212, BASE = 118;
+  var xr = function (v) { return pL + (v / TMAX) * plotW; };
+  var vFromX = function (px) { return Math.max(1, Math.min(TMAX, Math.round(((px - pL) / plotW) * TMAX))); };
+
+  function swarm(vals, dir) {
+    var buckets = {}, out = [];
+    vals.forEach(function (v) {
+      var x = xr(v), b = Math.round(x / 9);
+      var k = buckets[b] || 0; buckets[b] = k + 1;
+      out.push({ v: v, x: x, y: BASE + dir * (12 + k * 9.6) });
+    });
+    return out;
+  }
+  var casePts = swarm(CASES, -1), ctrlPts = swarm(CTRLS, 1);
+
+  function drawStrip() {
+    var t = state.t, tx = xr(t), c = counts(t), g = "", i;
+    for (i = 0; i <= TMAX; i += 10) {
+      g += '<line x1="' + xr(i).toFixed(1) + '" y1="54" x2="' + xr(i).toFixed(1) + '" y2="' + BOTY + '" stroke="var(--line)" stroke-width="1" opacity="0.6"/>' +
+           '<text x="' + xr(i).toFixed(1) + '" y="228" text-anchor="middle" font-size="12" fill="var(--muted)">' + i + '%</text>';
+    }
+    var dots = "";
+    casePts.forEach(function (p) {
+      dots += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="4.3" ' +
+        (p.v >= t ? 'fill="var(--case)"' : 'fill="var(--surface)" stroke="var(--case)" stroke-width="1.8"') + '/>';
+    });
+    ctrlPts.forEach(function (p) {
+      dots += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="4.3" ' +
+        (p.v >= t ? 'fill="var(--ctrl)"' : 'fill="var(--surface)" stroke="var(--ctrl)" stroke-width="1.6"') + '/>';
+    });
+
+    stripSvg.innerHTML =
+      '<circle cx="' + (pL + 5) + '" cy="' + (LBL1 - 4) + '" r="4.6" fill="var(--case)"/>' +
+      '<text x="' + (pL + 18) + '" y="' + LBL1 + '" font-size="12.5">' +
+        '<tspan font-weight="700" fill="var(--case)">10 patients develop heart disease.</tspan>' +
+        '<tspan fill="var(--text)">' + caseLine(c) + '</tspan></text>' +
+      '<circle cx="' + (pL + 5) + '" cy="' + (LBL2 - 4) + '" r="4.6" fill="var(--ctrl)"/>' +
+      '<text x="' + (pL + 18) + '" y="' + LBL2 + '" font-size="12.5">' +
+        '<tspan font-weight="700" fill="var(--ctrl)">90 patients stay well.</tspan>' +
+        '<tspan fill="var(--text)">' + ctrlLine(c) + '</tspan></text>' +
+      g +
+      '<line x1="' + pL + '" y1="' + BASE + '" x2="' + (SW - pR) + '" y2="' + BASE + '" stroke="var(--line)" stroke-width="1.2"/>' +
+      '<text x="' + pL + '" y="80" font-size="11.5" fill="var(--muted)">← predicted negative</text>' +
+      '<text x="' + (SW - pR) + '" y="80" text-anchor="end" font-size="11.5" fill="var(--muted)">predicted positive →</text>' +
+      dots +
+      '<line x1="' + tx.toFixed(1) + '" y1="' + TOPY + '" x2="' + tx.toFixed(1) + '" y2="' + BOTY + '" stroke="var(--accent)" stroke-width="2.5"/>' +
+      '<circle cx="' + tx.toFixed(1) + '" cy="' + TOPY + '" r="6" fill="var(--accent)"/>' +
+      '<text x="' + (pL + plotW / 2) + '" y="248" text-anchor="middle" font-size="12.5" fill="var(--muted)">Predicted 10-year risk of heart disease</text>';
+  }
+
+  /* ---------- ROC ---------- */
+  var RS = 330, rL = 46, rR = 14, rT = 16, rB = 44;
+  var rPW = RS - rL - rR, rPH = RS - rT - rB;
+  var rx = function (f) { return rL + f * rPW; };
+  var ry = function (s) { return rT + (1 - s) * rPH; };
+  var ROC = (function () {
+    var pts = [], t;
+    for (t = 101; t >= 0; t--) { var c = counts(t); pts.push([c.fp / 90, c.tp / 10]); }
+    return pts;
+  })();
+
+  function drawRoc() {
+    var limit = state.sweep ? (counts(state.sweepTo).fp / 90) : 1.01;
+    var shown = ROC.filter(function (p) { return p[0] <= limit; });
+    if (shown.length < 2) shown = ROC.slice(0, 2);
+    var line = shown.map(function (p, i) {
+      return (i ? "L" : "M") + rx(p[0]).toFixed(1) + "," + ry(p[1]).toFixed(1);
+    }).join(" ");
+    var last = shown[shown.length - 1];
+    var area = line + " L" + rx(last[0]).toFixed(1) + "," + ry(0) + " L" + rx(0) + "," + ry(0) + " Z";
+    var c = counts(state.t), px = rx(c.fp / 90), py = ry(c.tp / 10);
+    var grid = "";
+    [0, 0.5, 1].forEach(function (v) {
+      grid += '<line x1="' + rx(v) + '" y1="' + ry(0) + '" x2="' + rx(v) + '" y2="' + ry(1) + '" stroke="var(--line)" stroke-width="1" opacity="0.6"/>' +
+              '<line x1="' + rx(0) + '" y1="' + ry(v) + '" x2="' + rx(1) + '" y2="' + ry(v) + '" stroke="var(--line)" stroke-width="1" opacity="0.6"/>' +
+              '<text x="' + rx(v) + '" y="' + (ry(0) + 15) + '" text-anchor="middle" font-size="10.5" fill="var(--muted)">' + v.toFixed(1) + '</text>' +
+              '<text x="' + (rx(0) - 7) + '" y="' + (ry(v) + 3.5) + '" text-anchor="end" font-size="10.5" fill="var(--muted)">' + v.toFixed(1) + '</text>';
+    });
+    rocSvg.innerHTML = grid +
+      '<path d="' + area + '" fill="var(--case)" opacity="0.14"/>' +
+      '<line x1="' + rx(0) + '" y1="' + ry(0) + '" x2="' + rx(1) + '" y2="' + ry(1) + '" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="5 5"/>' +
+      '<path d="' + line + '" fill="none" stroke="var(--case)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<line x1="' + rx(0) + '" y1="' + py + '" x2="' + px + '" y2="' + py + '" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3" opacity="0.8"/>' +
+      '<line x1="' + px + '" y1="' + ry(0) + '" x2="' + px + '" y2="' + py + '" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3" opacity="0.8"/>' +
+      '<circle cx="' + px + '" cy="' + py + '" r="7" fill="var(--accent)" stroke="var(--surface)" stroke-width="2.5"/>' +
+      '<text x="' + rx(0.56) + '" y="' + ry(0.24) + '" text-anchor="middle" font-size="15" font-weight="700" fill="var(--case)" opacity="0.85">AUC ' + AUC.toFixed(2) + '</text>' +
+      '<text x="' + (rL + rPW / 2) + '" y="' + (RS - 6) + '" text-anchor="middle" font-size="11.5" fill="var(--muted)">1 − Specificity</text>' +
+      '<text transform="translate(13,' + (rT + rPH / 2) + ') rotate(-90)" text-anchor="middle" font-size="11.5" fill="var(--muted)">Sensitivity</text>';
+  }
+
+  /* ---------- readouts ---------- */
+  function numbers() {
+    var c = counts(state.t);
+    return {
+      c: c, se: c.tp / 10, sp: c.tn / 90,
+      ppv: (c.tp + c.fp) > 0 ? c.tp / (c.tp + c.fp) : null,
+      npv: (c.tn + c.fn) > 0 ? c.tn / (c.tn + c.fn) : null
+    };
+  }
+  function paint() {
+    var n = numbers(), c = n.c;
+    $("thrVal").textContent = state.t + "%";
+    $("nTP").textContent = String(c.tp); $("nFP").textContent = String(c.fp);
+    $("nFN").textContent = String(c.fn); $("nTN").textContent = String(c.tn);
+    $("margPos").textContent = String(c.tp + c.fp);
+    $("margNeg").textContent = String(c.tn + c.fn);
+    $("mSens").textContent = pct(n.se, 0);
+    $("mSpec").textContent = pct(n.sp, 1);
+    $("mPpv").textContent = n.ppv === null ? "n/a" : pct(n.ppv, 1);
+    $("mNpv").textContent = n.npv === null ? "n/a" : pct(n.npv, 1);
+    $("fSens").textContent = c.tp + "/(" + c.tp + "+" + c.fn + ")";
+    $("fSpec").textContent = c.tn + "/(" + c.tn + "+" + c.fp + ")";
+    $("fPpv").textContent = c.tp + "/(" + c.tp + "+" + c.fp + ")";
+    $("fNpv").textContent = c.tn + "/(" + c.tn + "+" + c.fn + ")";
+    drawStrip(); drawRoc();
+    return n;
+  }
+
+  function render(source) {
+    var n = paint(), c = n.c, pos = c.tp + c.fp;
+    var bits = [];
+    bits.push(pos === 0
+      ? "At a threshold of <b>" + state.t + "%</b> the model predicts disease for <b>nobody</b>."
+      : pos === 100
+      ? "At a threshold of <b>" + state.t + "%</b> the model predicts disease for <b>all 100</b> patients."
+      : "At a threshold of <b>" + state.t + "%</b> the model predicts disease for <b>" + pos + "</b> of the 100 patients.");
+    bits.push(c.tp === 0 ? "All <b>10</b> patients who go on to develop heart disease are missed."
+      : c.fn === 0 ? "It finds <b>all 10</b> patients who go on to develop heart disease."
+      : "It finds <b>" + c.tp + "</b> of the 10 who go on to develop heart disease, and misses <b>" + c.fn + "</b>.");
+    bits.push(c.fp === 0 ? "Nobody who stays well is predicted positive."
+      : c.fp === 1 ? "<b>1</b> patient who never develops heart disease is predicted positive as well."
+      : "<b>" + c.fp + "</b> patients who never develop heart disease are predicted positive as well.");
+    bits.push(n.ppv === null
+      ? "With no positive predictions there is no positive predictive value to report."
+      : "Of everyone predicted positive, <b>" + pct(n.ppv, 1) + "</b> actually develop heart disease.");
+    $("story").innerHTML = bits.join(" ");
+
+    if (source === "thr") {
+      $("notice").innerHTML = "Changing the threshold changes who is classified as positive. It does not change the model: " +
+        "every patient keeps the same predicted risk and the same place in the ranking. So sensitivity and specificity " +
+        "trade against one another, while the AUC stays at <b>" + AUC.toFixed(2) + "</b>.";
+    } else if (source === "preset-20") {
+      $("notice").innerHTML = "This is the confusion matrix from the slides: 8 true positives, 27 false positives, 2 false negatives, 63 true negatives. " +
+        "Sensitivity 80% and specificity 70% sound solid, yet <b>only 22.9%</b> of the patients predicted positive will develop heart disease.";
+    } else if (source === "preset-10") {
+      $("notice").innerHTML = "A screening cut-off. You now identify <b>9 of the 10</b> cases, but <b>" + c.fp +
+        "</b> people who stay well are predicted positive too, and PPV falls to <b>" + pct(n.ppv, 1) + "</b>.";
+    } else if (source === "preset-50") {
+      $("notice").innerHTML = "The conventional 0.5 default predicts disease for only <b>" + pos + " patients</b> and misses <b>" + c.fn +
+        " of the 10 cases</b>. When the outcome is uncommon, almost nobody has a predicted risk above 50%, so a threshold borrowed from statistics is not a clinical decision.";
+    } else if (source === "preset-60") {
+      $("notice").innerHTML = "Demanding strong evidence before acting: <b>" + pos + "</b> patient predicted positive, <b>" + c.tp +
+        "</b> case identified, <b>" + c.fn + "</b> missed. A PPV of " + pct(n.ppv, 0) + " is easy to achieve when the model predicts disease for almost nobody.";
+    }
+    document.querySelectorAll(".presets button").forEach(function (b) {
+      b.classList.toggle("on", +b.getAttribute("data-t") === state.t);
+    });
+  }
+
+  /* ---------- interaction ---------- */
+  thrEl.addEventListener("input", function () { stopSweep(); state.t = +thrEl.value; render("thr"); });
+  document.querySelectorAll(".presets button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      stopSweep(); state.t = +b.getAttribute("data-t"); thrEl.value = state.t;
+      render("preset-" + state.t);
+    });
+  });
+
+  var dragging = false;
+  function stripMove(e) {
+    var r = stripSvg.getBoundingClientRect();
+    state.t = vFromX(((e.clientX - r.left) / r.width) * SW);
+    thrEl.value = state.t; render("thr");
+  }
+  stripSvg.addEventListener("pointerdown", function (e) {
+    stopSweep(); dragging = true; stripSvg.setPointerCapture(e.pointerId); stripMove(e);
+  });
+  stripSvg.addEventListener("pointermove", function (e) { if (dragging) stripMove(e); });
+  stripSvg.addEventListener("pointerup", function () { dragging = false; });
+  stripSvg.addEventListener("pointercancel", function () { dragging = false; });
+
+  rocSvg.addEventListener("pointerdown", function (e) {
+    stopSweep();
+    var r = rocSvg.getBoundingClientRect();
+    var vx = ((e.clientX - r.left) / r.width) * RS, vy = ((e.clientY - r.top) / r.height) * RS;
+    var tf = Math.max(0, Math.min(1, (vx - rL) / rPW)), ts = Math.max(0, Math.min(1, 1 - (vy - rT) / rPH));
+    var best = state.t, bd = Infinity, t;
+    for (t = 1; t <= TMAX; t++) {
+      var c = counts(t), f = c.fp / 90, s = c.tp / 10;
+      var d = (f - tf) * (f - tf) + (s - ts) * (s - ts);
+      if (d < bd) { bd = d; best = t; }
+    }
+    state.t = best; thrEl.value = best; render("thr");
+  });
+
+  /* ---------- sweep ---------- */
+  var raf = null, t0 = 0;
+  function stopSweep() {
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    if (state.sweep) { state.sweep = false; playBtn.textContent = "▶ Sweep every threshold"; }
+  }
+  playBtn.addEventListener("click", function () {
+    if (state.sweep) { stopSweep(); render(null); return; }
+    state.sweep = true; state.sweepTo = TMAX; t0 = 0;
+    playBtn.textContent = "■ Stop";
+    $("notice").innerHTML = "Watch the line slide from “predict disease for nobody” across to “predict disease for everybody”. " +
+      "Every position it passes becomes one step on the curve. The ROC curve <b>is</b> the set of thresholds you did not choose.";
+    raf = requestAnimationFrame(step);
+  });
+  function step(ts) {
+    if (!t0) t0 = ts;
+    var p = Math.min((ts - t0) / 4200, 1);
+    state.t = Math.max(1, Math.round(TMAX - p * TMAX));
+    state.sweepTo = state.t;
+    thrEl.value = state.t;
+    paint();
+    if (p < 1) { raf = requestAnimationFrame(step); }
+    else { state.sweep = false; playBtn.textContent = "▶ Sweep every threshold"; raf = null; render(null); }
+  }
+
+  render("preset-20");
+})();
+</script>
+</body>
+</html>
